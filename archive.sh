@@ -50,7 +50,7 @@ function fetch() {
 
 function exitHandler() {
     local EXIT_CODE=$1
-    echo -e "Quitting, exit code $EXIT_CODE"
+    echo -e "[INFO] - Quitting, exit code $EXIT_CODE"
     exit $EXIT_CODE
 }
 
@@ -59,6 +59,7 @@ function responseHandler() {
     local RESPONSE=$2
     MESSAGE=$(echo "$RESPONSE" | jq -r '.message')
     MESSAGE_CODE=$(echo "$RESPONSE" | jq -r '.status_ext')
+    JOB_ID=$(echo "$RESPONSE" | jq -r '.job_id')
     
     # Quit if Wayback returns a non-zero exit code in curl
     if [[ $EXIT_CODE -ne 0 ]]; then
@@ -70,35 +71,39 @@ function responseHandler() {
     # https://docs.google.com/document/d/1Nsv52MvSjbLb2PCpHlat0gkzw0EvtSgpKHu4mk0MnrA/edit
     # echo "$RESPONSE"
     
+    # If the archiving job has been created successfully...
+    if [[ -n "$JOB_ID" && "$MESSAGE" == 'null' ]]; then
+        echo -e "[SUCCESS] - Archiving task created for $URL"
     # Wait and run it again to avoid Wayback killing our connection,
-    if [[ $MESSAGE_CODE == "error:user-session-limit" ]]; then
-        echo -e "Rate limiter reached, retrying this URL in 30s..."
+    elif [[ $MESSAGE_CODE == "error:user-session-limit" ]]; then
+        echo -e "[INFO] - Rate limiter reached, retrying this URL in 30s..."
         sleep 30
         fetch $URL
-        elif [[ $MESSAGE =~ "You can make new capture of this URL after 1 hour" ]]; then
+    elif [[ $MESSAGE =~ "You can make new capture of this URL after 1 hour" ]]; then
         # Skip the URL
-        echo "$MESSAGE"
+        echo "[INFO] - Already captured in the last hour, skipping..."
     else
         # Errors that merit quitting
         if [[ $MESSAGE_CODE =~ "error:" ]]; then
             # If Wayback returns a zero code but with an error message, quit
             echo -e "[ERROR] - $RESPONSE, quitting..."
             exitHandler 4
-            elif [[ $RESPONSE =~ "Connection refused" ]]; then
-            echo -e "$RESPONSE"
+        elif [[ $RESPONSE =~ "Connection refused" ]]; then
+            echo -e "[ERROR] - $RESPONSE"
             exitHandler 5
         fi
     fi
-    # If not retrying or quitting, skip the URL...
+    # Pause for 5s to avoid Wayback's rate-limiter
+    sleep 4
 }
 
 # Quit if no file is provided
 if [[ $# -eq 0 ]] ; then
-    echo -e "No file provided, quitting..."
+    echo -e "[ERROR] - No file provided, quitting..."
     echo -e "Usage:\n\n bash archive.sh myUrlsList.txt"
     exitHandler 2
     elif [[ ! -f $1 ]]; then
-    echo -e "File '$1' does not exist, quitting..."
+    echo -e "[ERROR] - File '$1' does not exist, quitting..."
 else
     echo -e "\nSubmitting URLs to the Wayback Machine!\n"
     while read LINE; do
@@ -107,8 +112,6 @@ else
         
         echo -e "Item $COUNT: "$(echo "$LINE")
         fetch $LINE
-        # Pause for 5s to avoid Wayback's rate-limiter
-        sleep 5
         echo ""
     done < $INPUT_FILE
     echo -e "\nURLs submitted to Archive.org Wayback Machine. Quitting..."
