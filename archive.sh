@@ -93,7 +93,7 @@ function responseHandler() {
             exitHandler 5
         fi
     fi
-    # Pause for 5s to avoid Wayback's rate-limiter
+    # Pause for a few seconds to avoid Wayback's rate-limiter
     sleep 4
 }
 
@@ -105,15 +105,14 @@ if [[ $# -eq 0 ]] ; then
     elif [[ ! -f $1 ]]; then
     echo -e "[ERROR] - File '$1' does not exist, quitting..."
 else
-    echo -e "\nSubmitting URLs to the Wayback Machine!\n"
+    echo -e "\n[INFO] - Submitting URLs to the Wayback Machine!\n"
     while read LINE; do
         # Increment the counter
         COUNT=$((COUNT+1))
         
-        echo -e "Item $COUNT: "$(echo "$LINE")
+        echo -e "[INFO] - Item $COUNT: "$(echo "$LINE")
         fetch $LINE
-        echo ""
     done < $INPUT_FILE
-    echo -e "\nURLs submitted to Archive.org Wayback Machine. Quitting..."
+    echo -e "\n[INFO] - URLs submitted to Archive.org Wayback Machine. Quitting..."
 fi
 exitHandler 0
