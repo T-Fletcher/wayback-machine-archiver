@@ -58,17 +58,7 @@ function responseHandler() {
     local URL=$1
     local RESPONSE=$2
     MESSAGE=$(echo "$RESPONSE" | jq -r '.message')
-    
-    # Wait and run it again to avoid Wayback killing our connection
-    if [[ $MESSAGE =~ "You have already reached the limit of active Save Page Now sessions." ]]; then
-        echo -e "Rate limiter reached, retrying this URL in 30s..."
-        sleep 30
-        fetch $URL
-    fi
-    
-    if [[ $MESSAGE =~ "You can make new capture of this URL after 1 hour" ]]; then
-        echo "$MESSAGE"
-    fi
+    MESSAGE_CODE=$(echo "$RESPONSE" | jq -r '.status_ext')
     
     # Quit if Wayback returns a non-zero exit code in curl
     if [[ $EXIT_CODE -ne 0 ]]; then
@@ -76,16 +66,30 @@ function responseHandler() {
         exitHandler 3
     fi
     
-    # If Wayback returns a zero code but with an error message, quit
-    if [[ $(echo "$RESPONSE" | jq -r '.status_ext') =~ "error:" ]]; then
-        echo -e "[ERROR] - $RESPONSE, quitting..."
-        exitHandler 4
-    fi
+    # See 'Error codes' in the doco for the full list of Wayback error responses:
+    # https://docs.google.com/document/d/1Nsv52MvSjbLb2PCpHlat0gkzw0EvtSgpKHu4mk0MnrA/edit
+    # echo "$RESPONSE"
     
-    if [[ $RESPONSE =~ "Connection refused" ]]; then
-        echo -e "$RESPONSE"
-        exitHandler 5
+    # Wait and run it again to avoid Wayback killing our connection,
+    if [[ $MESSAGE_CODE == "error:user-session-limit" ]]; then
+        echo -e "Rate limiter reached, retrying this URL in 30s..."
+        sleep 30
+        fetch $URL
+        elif [[ $MESSAGE =~ "You can make new capture of this URL after 1 hour" ]]; then
+        # Skip the URL
+        echo "$MESSAGE"
+    else
+        # Errors that merit quitting
+        if [[ $MESSAGE_CODE =~ "error:" ]]; then
+            # If Wayback returns a zero code but with an error message, quit
+            echo -e "[ERROR] - $RESPONSE, quitting..."
+            exitHandler 4
+            elif [[ $RESPONSE =~ "Connection refused" ]]; then
+            echo -e "$RESPONSE"
+            exitHandler 5
+        fi
     fi
+    # If not retrying or quitting, skip the URL...
 }
 
 # Quit if no file is provided
