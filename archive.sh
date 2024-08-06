@@ -17,6 +17,8 @@
 # TODO: Ideally, make this crawl the target website and submit the URLs it finds that
 # have a 200 HTTP code response.
 
+# TODO: Add reporter log to capture which URLs worked/failed
+
 # TODO: Refactor to handle Wayback's API properly:
 
 # To not duplicate URLs:
@@ -79,8 +81,9 @@ function responseHandler() {
         echo -e "[INFO] - Rate limiter reached, retrying this URL in 30s..."
         sleep 30
         fetch $URL
+    elif [[ $MESSAGE_CODE == "error:too-many-daily-captures" ]]; then
+        echo -e "[INFO] - This URL has already been indexed 5 times today, skippping..."
     elif [[ $MESSAGE =~ "You can make new capture of this URL after 1 hour" ]]; then
-        # Skip the URL
         echo "[INFO] - Already captured in the last hour, skipping..."
     else
         # Errors that merit quitting
